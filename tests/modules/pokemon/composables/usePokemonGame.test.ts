@@ -1,5 +1,6 @@
 import { flushPromises } from '@vue/test-utils';
 import MockAdapter from 'axios-mock-adapter';
+import confetti from 'canvas-confetti';
 
 import { usePokemonGame } from '@/modules/pokemon/composables/usePokemonGame';
 import { withSetup } from '../../../utils/with-setup';
@@ -13,6 +14,10 @@ const mockPokemonApi = new MockAdapter(pokemonApi);
 mockPokemonApi.onGet('/?limit=151').reply(200, {
   results: pokemonListFake,
 });
+
+vi.mock('canvas-confetti', () => ({
+  default: vi.fn(),
+}));
 
 describe('usePokemonGame', async () => {
   test('should initialize with the correct default values', async () => {
@@ -59,5 +64,37 @@ describe('usePokemonGame', async () => {
     secondOptions.forEach((pokemon) => {
       expect(firstOptions).not.toContain(pokemon.name);
     });
+  });
+
+  test('should correctly handle a incorrect answer', async () => {
+    const [results] = withSetup(usePokemonGame);
+    await flushPromises();
+
+    const { checkAnswer, gameStatus } = results;
+
+    expect(gameStatus.value).toBe(GameStatus.Playing);
+
+    checkAnswer(100000000); // pokemon id no existe.
+
+    expect(gameStatus.value).toBe(GameStatus.Lost);
+  });
+
+  test('should correctly handle a correct answer', async () => {
+    const [results] = withSetup(usePokemonGame);
+    await flushPromises();
+
+    const { checkAnswer, gameStatus, randomPokemon } = results;
+
+    expect(gameStatus.value).toBe(GameStatus.Playing);
+
+    checkAnswer(randomPokemon.value.id); // pokemon id no existe.
+
+    expect(confetti).toHaveBeenCalled();
+    expect(confetti).toHaveBeenCalledWith({
+      particleCount: 300,
+      spread: 150,
+      origin: { y: 0.6 },
+    });
+    expect(gameStatus.value).toBe(GameStatus.Won);
   });
 });
